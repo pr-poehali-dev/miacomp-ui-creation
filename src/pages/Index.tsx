@@ -120,10 +120,15 @@ function OfferCard({
   isHovered: boolean;
   onHover: () => void; onLeave: () => void; onClick: () => void;
 }) {
+  const [selected, setSelected] = useState(false);
   const { truck, plane } = calcDelivery(offer.price, offer.currency);
   const hasMeta = offer.comment || offer.file;
   const curColor = CUR_COLOR[offer.currency];
-  const rubPrice = offer.currency === 'CNY' ? offer.price * CNY_RUB : offer.price * USD_RUB;
+
+  const handleCheck = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelected((s) => !s);
+  };
 
   return (
     <div
@@ -132,28 +137,27 @@ function OfferCard({
       onClick={onClick}
       className="glass glass-hover relative flex flex-col rounded-xl cursor-pointer shrink-0 w-[190px] overflow-hidden"
     >
-      {/* Поставщик */}
-      <div className="flex items-center gap-1.5 px-3 pt-3 pb-2 border-b border-white/6">
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neon-purple/20 text-[9px] font-bold text-neon-purple">
-          {offer.supplier[0]}
+      {/* Строка 1: Поставщик — Состояние */}
+      <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-2">
+        <span className="flex items-center gap-1.5 min-w-0">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neon-purple/20 text-[9px] font-bold text-neon-purple">
+            {offer.supplier[0]}
+          </span>
+          <span className="truncate text-xs font-semibold text-foreground/90">{offer.supplier}</span>
         </span>
-        <span className="truncate text-xs font-semibold text-foreground/90">{offer.supplier}</span>
+        <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: `${condColors[offer.cond]}22`, color: condColors[offer.cond] }}>
+          {offer.cond}
+        </span>
       </div>
 
       {/* Тело: две колонки */}
-      <div className="flex flex-1 px-3 py-2.5 gap-2">
-        {/* Левая: цены */}
+      <div className="flex flex-1 px-3 pb-3 gap-2">
+        {/* Левая: цена + доставки */}
         <div className="flex flex-col justify-start flex-1 min-w-0">
-          {/* Цена в валюте */}
           <p className="font-mono text-lg font-extrabold leading-tight" style={{ color: curColor }}>
             {fmtPrice(offer.price, offer.currency)}
           </p>
-          {/* Цена в рублях */}
-          <p className="font-mono text-sm font-bold text-foreground/70 leading-tight mb-2">
-            {Math.round(rubPrice).toLocaleString('ru-RU')} ₽
-          </p>
-          {/* Доставки */}
-          <div className="space-y-1">
+          <div className="mt-1.5 space-y-1">
             <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
               <Icon name="Truck" size={12} className="text-neon-cyan shrink-0" />
               <span className="font-mono">{fmtRub(truck)}</span>
@@ -165,16 +169,13 @@ function OfferCard({
           </div>
         </div>
 
-        {/* Правая: состояние, срок, метки */}
+        {/* Правая: срок + метки */}
         <div className="flex flex-col items-end gap-1.5 shrink-0">
-          <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: `${condColors[offer.cond]}22`, color: condColors[offer.cond] }}>
-            {offer.cond}
-          </span>
           <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
             <Icon name="Clock" size={10} />{offer.days}
           </span>
           {hasMeta && (
-            <div className="flex items-center gap-1.5 mt-auto pt-1">
+            <div className="flex items-center gap-1.5 mt-auto">
               {offer.comment && <Icon name="MessageSquareText" size={15} className="text-neon-cyan" />}
               {offer.file    && <Icon name="Paperclip" size={15} className="text-neon-purple" />}
             </div>
@@ -182,11 +183,20 @@ function OfferCard({
         </div>
       </div>
 
-      {/* Чекбокс при наведении */}
-      <div className={`flex items-center gap-1.5 px-3 pb-2.5 transition-all duration-200 ${isHovered ? 'opacity-100 max-h-7' : 'opacity-0 max-h-0 overflow-hidden'}`}>
-        <input type="checkbox" onClick={(e) => e.stopPropagation()} className="h-4 w-4 rounded accent-neon-cyan cursor-pointer" />
-        <span className="text-[10px] text-neon-cyan">Выбрать</span>
-      </div>
+      {/* Галочка в правом нижнем углу */}
+      <button
+        onClick={handleCheck}
+        className="absolute bottom-2 right-2 transition-all duration-200"
+        style={{ opacity: isHovered || selected ? 1 : 0, pointerEvents: isHovered || selected ? 'auto' : 'none' }}
+      >
+        <div className={`flex h-6 w-6 items-center justify-center rounded-full transition-all duration-200 ${
+          selected
+            ? 'bg-neon-cyan shadow-[0_0_10px_rgba(0,212,255,0.6)]'
+            : 'bg-white/10 border border-white/25'
+        }`}>
+          <Icon name="Check" size={13} className={selected ? 'text-background' : 'text-white/60'} />
+        </div>
+      </button>
     </div>
   );
 }
