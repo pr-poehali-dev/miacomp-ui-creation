@@ -175,7 +175,7 @@ function OfferCard({
             <Icon name="Clock" size={10} />{offer.days}
           </span>
           {hasMeta && (
-            <div className="flex items-center gap-1.5 mt-auto">
+            <div className="flex items-center gap-1.5">
               {offer.comment && <Icon name="MessageSquareText" size={15} className="text-neon-cyan" />}
               {offer.file    && <Icon name="Paperclip" size={15} className="text-neon-purple" />}
             </div>
