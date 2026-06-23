@@ -87,7 +87,6 @@ const products: Product[] = [
       { supplier: 'Katherine',   price: 9500, currency: 'CNY', cond: 'NEW',  days: '10 дн', file: 'invoice_kat.pdf' },
       { supplier: 'Jack',        price: 1480, currency: 'USD', cond: 'USED', days: '5 дн', comment: 'Протестировано, полный комплект.' },
       { supplier: 'Morry',       price: 9200, currency: 'CNY', cond: 'REF',  days: '18 дн' },
-      { supplier: 'Maggi',       price: 1610, currency: 'USD', cond: 'NEW',  days: '12 дн', comment: 'Последняя партия по этой цене.' },
     ],
   },
   {
@@ -115,72 +114,76 @@ const products: Product[] = [
 
 /* ─── Компонент карточки предложения ─── */
 function OfferCard({
-  offer, productPn, productDesc,
-  isHovered, onHover, onLeave, onClick,
+  offer, isHovered, onHover, onLeave, onClick,
 }: {
-  offer: Offer; productPn: string; productDesc: string;
+  offer: Offer;
   isHovered: boolean;
   onHover: () => void; onLeave: () => void; onClick: () => void;
 }) {
   const { truck, plane } = calcDelivery(offer.price, offer.currency);
   const hasMeta = offer.comment || offer.file;
   const curColor = CUR_COLOR[offer.currency];
+  const rubPrice = offer.currency === 'CNY' ? offer.price * CNY_RUB : offer.price * USD_RUB;
 
   return (
     <div
       onMouseEnter={onHover}
       onMouseLeave={onLeave}
       onClick={onClick}
-      className="glass glass-hover relative flex flex-col rounded-xl p-3 cursor-pointer shrink-0 w-[172px]"
+      className="glass glass-hover relative flex flex-col rounded-xl cursor-pointer shrink-0 w-[190px] overflow-hidden"
     >
       {/* Поставщик */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="flex items-center gap-1.5 min-w-0">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neon-purple/20 text-[9px] font-bold text-neon-purple">
-            {offer.supplier[0]}
+      <div className="flex items-center gap-1.5 px-3 pt-3 pb-2 border-b border-white/6">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neon-purple/20 text-[9px] font-bold text-neon-purple">
+          {offer.supplier[0]}
+        </span>
+        <span className="truncate text-xs font-semibold text-foreground/90">{offer.supplier}</span>
+      </div>
+
+      {/* Тело: две колонки */}
+      <div className="flex flex-1 px-3 py-2.5 gap-2">
+        {/* Левая: цены */}
+        <div className="flex flex-col justify-start flex-1 min-w-0">
+          {/* Цена в валюте */}
+          <p className="font-mono text-lg font-extrabold leading-tight" style={{ color: curColor }}>
+            {fmtPrice(offer.price, offer.currency)}
+          </p>
+          {/* Цена в рублях */}
+          <p className="font-mono text-sm font-bold text-foreground/70 leading-tight mb-2">
+            {Math.round(rubPrice).toLocaleString('ru-RU')} ₽
+          </p>
+          {/* Доставки */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Icon name="Truck" size={12} className="text-neon-cyan shrink-0" />
+              <span className="font-mono">{fmtRub(truck)}</span>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Icon name="Plane" size={12} className="text-neon-purple shrink-0" />
+              <span className="font-mono">{fmtRub(plane)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Правая: состояние, срок, метки */}
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: `${condColors[offer.cond]}22`, color: condColors[offer.cond] }}>
+            {offer.cond}
           </span>
-          <span className="truncate text-xs font-semibold text-foreground/90">{offer.supplier}</span>
-        </span>
-      </div>
-
-      {/* Цена крупная */}
-      <p className="font-mono text-xl font-bold leading-none" style={{ color: curColor }}>
-        {fmtPrice(offer.price, offer.currency)}
-      </p>
-
-      {/* Доставка */}
-      <div className="mt-1.5 space-y-0.5">
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-          <Icon name="Truck" size={11} className="text-neon-cyan shrink-0" />
-          <span className="font-mono">{fmtRub(truck)}</span>
-        </div>
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-          <Icon name="Plane" size={11} className="text-neon-purple shrink-0" />
-          <span className="font-mono">{fmtRub(plane)}</span>
+          <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground whitespace-nowrap">
+            <Icon name="Clock" size={10} />{offer.days}
+          </span>
+          {hasMeta && (
+            <div className="flex items-center gap-1.5 mt-auto pt-1">
+              {offer.comment && <Icon name="MessageSquareText" size={15} className="text-neon-cyan" />}
+              {offer.file    && <Icon name="Paperclip" size={15} className="text-neon-purple" />}
+            </div>
+          )}
         </div>
       </div>
-
-      {/* Состояние + Срок */}
-      <div className="mt-2 flex items-center gap-2">
-        <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: `${condColors[offer.cond]}22`, color: condColors[offer.cond] }}>
-          {offer.cond}
-        </span>
-        <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-          <Icon name="Clock" size={10} />
-          {offer.days}
-        </span>
-      </div>
-
-      {/* Метки */}
-      {hasMeta && (
-        <div className="mt-2 flex items-center gap-2 border-t border-white/5 pt-2">
-          {offer.comment && <Icon name="MessageSquareText" size={15} className="text-neon-cyan" />}
-          {offer.file    && <Icon name="Paperclip" size={15} className="text-neon-purple" />}
-        </div>
-      )}
 
       {/* Чекбокс при наведении */}
-      <div className={`mt-2 flex items-center gap-1.5 transition-all duration-200 ${isHovered ? 'opacity-100 max-h-6' : 'opacity-0 max-h-0 overflow-hidden'}`}>
+      <div className={`flex items-center gap-1.5 px-3 pb-2.5 transition-all duration-200 ${isHovered ? 'opacity-100 max-h-7' : 'opacity-0 max-h-0 overflow-hidden'}`}>
         <input type="checkbox" onClick={(e) => e.stopPropagation()} className="h-4 w-4 rounded accent-neon-cyan cursor-pointer" />
         <span className="text-[10px] text-neon-cyan">Выбрать</span>
       </div>
@@ -194,7 +197,7 @@ function OffersRow({ product, onOfferClick }: {
   onOfferClick: (o: Offer & { pn: string; desc: string }) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [canScroll, setCanScroll] = useState(product.offers.length > 6);
+  const [canScroll, setCanScroll] = useState(product.offers.length > 5);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   const scroll = () => {
@@ -226,8 +229,6 @@ function OffersRow({ product, onOfferClick }: {
           <OfferCard
             key={si}
             offer={offer}
-            productPn={product.pn}
-            productDesc={product.desc}
             isHovered={hoveredIdx === si}
             onHover={() => setHoveredIdx(si)}
             onLeave={() => setHoveredIdx(null)}
@@ -431,53 +432,68 @@ const Index = () => {
         <section className="glass rounded-2xl overflow-hidden mb-6 opacity-0 animate-fade-in" style={{ animationDelay: '500ms' }}>
 
           {/* ── Шапка запроса ── */}
-          <div className="flex items-stretch overflow-hidden rounded-t-2xl" style={{ minHeight: '56px' }}>
-
+          {/* Urgency bar: full-width strip behind everything */}
+          <div
+            className="relative flex items-stretch overflow-hidden rounded-t-2xl"
+            style={{
+              background: currentUrgency === 'Срочно'
+                ? 'rgba(255,77,109,0.18)'
+                : 'rgba(0,212,255,0.07)',
+              minHeight: '52px',
+            }}
+          >
             {/* Левая часть: данные запроса */}
-            <div className="flex items-center gap-4 px-6 py-3 flex-1 min-w-0"
-              style={{ background: currentUrgency === 'Срочно' ? 'rgba(255,77,109,0.13)' : 'rgba(0,212,255,0.08)' }}>
-              <span className="font-mono text-lg font-bold text-neon-cyan whitespace-nowrap">REQ-2048</span>
-              <span className="hidden md:block text-sm font-semibold text-foreground whitespace-nowrap">ООО «ТехноПром»</span>
-              <span className="hidden lg:flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap"><Icon name="User" size={13} />Алексей М.</span>
-              <span className="hidden lg:flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap"><Icon name="Calendar" size={13} />23.06.2026</span>
-              <span className="hidden lg:flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap"><Icon name="Package" size={13} />3 позиции</span>
-            </div>
-
-            {/* Диагональный разделитель */}
-            <div className="w-8 shrink-0 overflow-hidden"
-              style={{
-                background: sm.bg,
-                clipPath: 'polygon(100% 0, 100% 100%, 0 100%, 24px 0)',
-                marginLeft: '-1px',
-              }}
-            />
-
-            {/* Правая часть: статус */}
-            <div className="flex items-center px-6 py-3 gap-3 shrink-0" style={{ background: sm.bg }}>
-              <span className="font-mono text-xl font-extrabold tracking-widest" style={{ color: sm.color }}>
-                {sm.label}
+            <div className="flex flex-1 items-center gap-5 px-6 py-3 min-w-0">
+              <span className="font-mono text-base font-bold text-neon-cyan whitespace-nowrap">REQ-2048</span>
+              <span className="text-sm font-semibold text-foreground whitespace-nowrap">ООО «ТехноПром»</span>
+              <span className="hidden lg:flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
+                <Icon name="User" size={12} />Алексей М.
               </span>
-              {currentUrgency === 'Срочно' && (
-                <span className="flex items-center gap-1 rounded-full bg-destructive/20 px-2.5 py-1 text-[11px] font-semibold text-destructive">
-                  <Icon name="Zap" size={12} />СРОЧНО
-                </span>
-              )}
+              <span className="hidden lg:flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
+                <Icon name="Calendar" size={12} />23.06.2026
+              </span>
+              <span className="hidden lg:flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
+                <Icon name="Package" size={12} />3 позиции
+              </span>
             </div>
 
-            {/* Иконки менеджера */}
-            <div className="flex items-center gap-1 px-4 shrink-0 border-l border-white/8">
-              <button className="flex h-9 w-9 items-center justify-center rounded-lg glass glass-hover" title="Чат по запросу">
-                <Icon name="MessageSquare" size={16} className="text-neon-cyan" />
-              </button>
-              <button className="flex h-9 w-9 items-center justify-center rounded-lg glass glass-hover" title="Файлы к запросу">
-                <Icon name="Download" size={16} className="text-muted-foreground" />
-              </button>
-              <button className="flex h-9 w-9 items-center justify-center rounded-lg glass glass-hover" title="Создать сделку в Битрикс">
-                <Icon name="Handshake" size={16} className="text-neon-purple" />
-              </button>
-              <button className="flex h-9 w-9 items-center justify-center rounded-lg glass glass-hover" title="Создать задачу на закупку в Битрикс">
-                <Icon name="ListChecks" size={16} className="text-[#FFB020]" />
-              </button>
+            {/* Статусная секция — скошена с левой стороны через skew */}
+            <div
+              className="relative flex items-center shrink-0"
+              style={{ marginLeft: '-20px' }}
+            >
+              {/* Скошенный фон */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: sm.bg,
+                  transform: 'skewX(-12deg)',
+                  transformOrigin: 'bottom left',
+                  borderLeft: '2px solid rgba(255,255,255,0.28)',
+                }}
+              />
+              {/* Контент (не скошен — только фон) */}
+              <div className="relative flex items-center gap-3 pl-8 pr-5 py-3">
+                <span className="font-mono text-lg font-extrabold tracking-widest whitespace-nowrap" style={{ color: sm.color }}>
+                  {sm.label}
+                </span>
+
+                {/* Иконки менеджера */}
+                <div className="flex items-center gap-0.5 pl-2 border-l border-white/15">
+                  <button className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/10 transition-colors" title="Чат по запросу">
+                    <Icon name="MessageSquare" size={15} className="text-neon-cyan" />
+                  </button>
+                  <button className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/10 transition-colors" title="Файлы к запросу">
+                    <Icon name="Download" size={15} className="text-foreground/60" />
+                  </button>
+                  <button className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/10 transition-colors" title="Создать сделку в Битрикс">
+                    <Icon name="Handshake" size={15} className="text-neon-purple" />
+                  </button>
+                  <button className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/10 transition-colors" title="Создать задачу на закупку в Битрикс">
+                    <Icon name="ListChecks" size={15} className="text-[#FFB020]" />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
