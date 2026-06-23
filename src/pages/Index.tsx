@@ -1,35 +1,45 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Icon from '@/components/ui/icon';
 
+/* ─── Курсы валют ─── */
+const CNY_RUB = 12.84;
+const USD_RUB = 92.17;
+
 const stats = [
-  { icon: 'Server', label: 'Активные запросы', value: '147', sub: '+12 за неделю', color: '#00D4FF' },
-  { icon: 'FileText', label: 'Сформировано КП', value: '89', sub: '+5 сегодня', color: '#8B5CF6' },
-  { icon: 'CheckCircle2', label: 'Выполнено', value: '312', sub: '94% успешных', color: '#22D88F' },
-  { icon: 'Clock', label: 'В ожидании', value: '23', sub: 'ср. 2.4 дня', color: '#FFB020' },
+  { icon: 'Server',        label: 'Активные запросы', value: '147', sub: '+12 за неделю', color: '#00D4FF' },
+  { icon: 'FileText',      label: 'Сформировано КП',  value: '89',  sub: '+5 сегодня',    color: '#8B5CF6' },
+  { icon: 'CheckCircle2',  label: 'Выполнено',        value: '312', sub: '94% успешных',  color: '#22D88F' },
+  { icon: 'Clock',         label: 'В ожидании',       value: '23',  sub: 'ср. 2.4 дня',   color: '#FFB020' },
 ];
 
 const currencies = [
-  { pair: 'CNY / RUB', value: '12.84', change: '+0.42%', up: true },
-  { pair: 'USD / RUB', value: '92.17', change: '-0.18%', up: false },
+  { pair: 'CNY / RUB', value: CNY_RUB.toFixed(2), change: '+0.42%', up: true },
+  { pair: 'USD / RUB', value: USD_RUB.toFixed(2), change: '-0.18%', up: false },
 ];
 
-const statusFilters = ['Новый', 'В работе', 'Выполнен'];
+const statusFilters  = ['Новый', 'В работе', 'Выполнен'];
 const urgencyFilters = ['Стандарт', 'Срочно'];
 
-const condColors: Record<string, string> = {
-  NEW: '#22D88F',
-  USED: '#FFB020',
-  REF: '#8B5CF6',
+const statusMeta: Record<string, { color: string; bg: string; label: string }> = {
+  'Новый':    { color: '#00D4FF', bg: 'rgba(0,212,255,0.18)',   label: 'НОВЫЙ'    },
+  'В работе': { color: '#FFB020', bg: 'rgba(255,176,32,0.18)',  label: 'В РАБОТЕ' },
+  'Выполнен': { color: '#22D88F', bg: 'rgba(34,216,143,0.18)',  label: 'ВЫПОЛНЕН' },
 };
+
+const condColors: Record<string, string> = {
+  NEW:  '#22D88F',
+  USED: '#FFB020',
+  REF:  '#8B5CF6',
+};
+
+type Currency = 'CNY' | 'USD';
 
 type Offer = {
   supplier: string;
-  price: string;
-  cur: string;
+  price: number;
+  currency: Currency;
   cond: 'NEW' | 'USED' | 'REF';
   days: string;
-  truck: string;
-  plane: string;
   comment?: string;
   file?: string;
 };
@@ -38,7 +48,30 @@ type Product = {
   pn: string;
   desc: string;
   qty: number;
+  managerComment?: string;
   offers: Offer[];
+};
+
+/* ─── Расчёт доставки ─── */
+function calcDelivery(price: number, cur: Currency) {
+  const rub = cur === 'CNY' ? price * CNY_RUB : price * USD_RUB;
+  const truck = Math.round(rub * 1.30);
+  const plane = Math.round(rub * 1.20);
+  return { truck, plane };
+}
+
+function fmtRub(n: number) {
+  return n.toLocaleString('ru-RU') + ' ₽';
+}
+
+function fmtPrice(price: number, cur: Currency) {
+  if (cur === 'CNY') return '¥ ' + price.toLocaleString('ru-RU');
+  return '$ ' + price.toLocaleString('ru-RU');
+}
+
+const CUR_COLOR: Record<Currency, string> = {
+  CNY: '#F59E42',   // золотисто-оранжевый → юань
+  USD: '#22D88F',   // зелёный → доллар
 };
 
 const products: Product[] = [
@@ -46,10 +79,15 @@ const products: Product[] = [
     pn: 'DL380-G11',
     desc: 'HPE ProLiant DL380 Gen11 Server',
     qty: 4,
+    managerComment: 'Нужны с лицензией iLO Advanced',
     offers: [
-      { supplier: 'Jeanne', price: '142 500', cur: '₽', cond: 'NEW', days: '14 дн', truck: '1.2k', plane: '3.5k' },
-      { supplier: 'Power Star', price: '138 900', cur: '₽', cond: 'REF', days: '21 дн', truck: '0.9k', plane: '2.8k', comment: 'Восстановленные, гарантия 12 мес. Возможна частичная отгрузка двумя партиями по согласованию.', file: 'spec_DL380.pdf' },
-      { supplier: 'Tony', price: '145 000', cur: '₽', cond: 'NEW', days: '7 дн', truck: '1.5k', plane: '4.1k' },
+      { supplier: 'Jeanne',      price: 1560, currency: 'USD', cond: 'NEW',  days: '14 дн' },
+      { supplier: 'Power Star',  price: 9800, currency: 'CNY', cond: 'REF',  days: '21 дн', comment: 'Восстановленные, гарантия 12 мес. Возможна частичная отгрузка двумя партиями.', file: 'spec_DL380.pdf' },
+      { supplier: 'Tony',        price: 1590, currency: 'USD', cond: 'NEW',  days: '7 дн'  },
+      { supplier: 'Katherine',   price: 9500, currency: 'CNY', cond: 'NEW',  days: '10 дн', file: 'invoice_kat.pdf' },
+      { supplier: 'Jack',        price: 1480, currency: 'USD', cond: 'USED', days: '5 дн', comment: 'Протестировано, полный комплект.' },
+      { supplier: 'Morry',       price: 9200, currency: 'CNY', cond: 'REF',  days: '18 дн' },
+      { supplier: 'Maggi',       price: 1610, currency: 'USD', cond: 'NEW',  days: '12 дн', comment: 'Последняя партия по этой цене.' },
     ],
   },
   {
@@ -57,37 +95,195 @@ const products: Product[] = [
     desc: 'Cisco Nexus 9300 Switch 48-port',
     qty: 2,
     offers: [
-      { supplier: 'Katherine', price: '89 200', cur: '₽', cond: 'NEW', days: '10 дн', truck: '0.8k', plane: '2.1k' },
-      { supplier: 'Jack', price: '85 400', cur: '₽', cond: 'USED', days: '5 дн', truck: '0.6k', plane: '1.9k', comment: 'Б/у, протестированы на стенде. Прилагаю фото и отчёт диагностики.', file: 'report_MX9300.xlsx' },
+      { supplier: 'Katherine', price: 960,  currency: 'USD', cond: 'NEW',  days: '10 дн' },
+      { supplier: 'Jack',      price: 6200, currency: 'CNY', cond: 'USED', days: '5 дн', comment: 'Б/у, протестированы на стенде.', file: 'report_MX9300.xlsx' },
+      { supplier: 'Tony',      price: 1010, currency: 'USD', cond: 'NEW',  days: '8 дн'  },
     ],
   },
   {
     pn: 'SSD-3840-NV',
     desc: 'Samsung PM9A3 NVMe 3.84TB U.2',
     qty: 16,
+    managerComment: 'Принимаем только U.2 форм-фактор, не M.2',
     offers: [
-      { supplier: 'Morry', price: '24 100', cur: '₽', cond: 'NEW', days: '12 дн', truck: '0.4k', plane: '1.2k' },
-      { supplier: 'Maggi', price: '22 800', cur: '₽', cond: 'REF', days: '18 дн', truck: '0.3k', plane: '1.0k' },
+      { supplier: 'Morry',      price: 1880, currency: 'CNY', cond: 'NEW', days: '12 дн' },
+      { supplier: 'Maggi',      price: 1760, currency: 'CNY', cond: 'REF', days: '18 дн' },
+      { supplier: 'Power Star', price: 248,  currency: 'USD', cond: 'NEW', days: '9 дн',  file: 'ssd_spec.pdf' },
     ],
   },
 ];
 
+/* ─── Компонент карточки предложения ─── */
+function OfferCard({
+  offer, productPn, productDesc,
+  isHovered, onHover, onLeave, onClick,
+}: {
+  offer: Offer; productPn: string; productDesc: string;
+  isHovered: boolean;
+  onHover: () => void; onLeave: () => void; onClick: () => void;
+}) {
+  const { truck, plane } = calcDelivery(offer.price, offer.currency);
+  const hasMeta = offer.comment || offer.file;
+  const curColor = CUR_COLOR[offer.currency];
+
+  return (
+    <div
+      onMouseEnter={onHover}
+      onMouseLeave={onLeave}
+      onClick={onClick}
+      className="glass glass-hover relative flex flex-col rounded-xl p-3 cursor-pointer shrink-0 w-[172px]"
+    >
+      {/* Поставщик */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="flex items-center gap-1.5 min-w-0">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neon-purple/20 text-[9px] font-bold text-neon-purple">
+            {offer.supplier[0]}
+          </span>
+          <span className="truncate text-xs font-semibold text-foreground/90">{offer.supplier}</span>
+        </span>
+      </div>
+
+      {/* Цена крупная */}
+      <p className="font-mono text-xl font-bold leading-none" style={{ color: curColor }}>
+        {fmtPrice(offer.price, offer.currency)}
+      </p>
+
+      {/* Доставка */}
+      <div className="mt-1.5 space-y-0.5">
+        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+          <Icon name="Truck" size={11} className="text-neon-cyan shrink-0" />
+          <span className="font-mono">{fmtRub(truck)}</span>
+        </div>
+        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+          <Icon name="Plane" size={11} className="text-neon-purple shrink-0" />
+          <span className="font-mono">{fmtRub(plane)}</span>
+        </div>
+      </div>
+
+      {/* Состояние + Срок */}
+      <div className="mt-2 flex items-center gap-2">
+        <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: `${condColors[offer.cond]}22`, color: condColors[offer.cond] }}>
+          {offer.cond}
+        </span>
+        <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+          <Icon name="Clock" size={10} />
+          {offer.days}
+        </span>
+      </div>
+
+      {/* Метки */}
+      {hasMeta && (
+        <div className="mt-2 flex items-center gap-2 border-t border-white/5 pt-2">
+          {offer.comment && <Icon name="MessageSquareText" size={15} className="text-neon-cyan" />}
+          {offer.file    && <Icon name="Paperclip" size={15} className="text-neon-purple" />}
+        </div>
+      )}
+
+      {/* Чекбокс при наведении */}
+      <div className={`mt-2 flex items-center gap-1.5 transition-all duration-200 ${isHovered ? 'opacity-100 max-h-6' : 'opacity-0 max-h-0 overflow-hidden'}`}>
+        <input type="checkbox" onClick={(e) => e.stopPropagation()} className="h-4 w-4 rounded accent-neon-cyan cursor-pointer" />
+        <span className="text-[10px] text-neon-cyan">Выбрать</span>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Скроллируемый ряд предложений ─── */
+function OffersRow({ product, onOfferClick }: {
+  product: Product;
+  onOfferClick: (o: Offer & { pn: string; desc: string }) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScroll, setCanScroll] = useState(product.offers.length > 6);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
+  const scroll = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollBy({ left: 360, behavior: 'smooth' });
+      setTimeout(() => {
+        if (scrollRef.current) {
+          const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+          setCanScroll(scrollLeft + clientWidth < scrollWidth - 10);
+        }
+      }, 400);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <div
+        ref={scrollRef}
+        className="flex gap-3 overflow-x-auto pb-1 scroll-smooth"
+        style={{ scrollbarWidth: 'none' }}
+        onScroll={() => {
+          if (scrollRef.current) {
+            const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+            setCanScroll(scrollLeft + clientWidth < scrollWidth - 10);
+          }
+        }}
+      >
+        {product.offers.map((offer, si) => (
+          <OfferCard
+            key={si}
+            offer={offer}
+            productPn={product.pn}
+            productDesc={product.desc}
+            isHovered={hoveredIdx === si}
+            onHover={() => setHoveredIdx(si)}
+            onLeave={() => setHoveredIdx(null)}
+            onClick={() => onOfferClick({ ...offer, pn: product.pn, desc: product.desc })}
+          />
+        ))}
+      </div>
+
+      {/* Кнопка прокрутки */}
+      {canScroll && (
+        <button
+          onClick={scroll}
+          className="absolute right-0 top-0 h-full w-14 flex items-center justify-end pr-2 rounded-r-xl"
+          style={{
+            background: 'linear-gradient(to right, transparent, rgba(11,18,40,0.92) 60%)',
+          }}
+        >
+          <div className="flex h-8 w-8 items-center justify-center rounded-full glass border border-white/15 text-neon-cyan shadow-[0_0_12px_rgba(0,212,255,0.3)]">
+            <Icon name="ChevronRight" size={16} />
+          </div>
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ─── Главный компонент ─── */
 const Index = () => {
   const [activeStatuses, setActiveStatuses] = useState<string[]>(['Новый']);
-  const [activeUrgency, setActiveUrgency] = useState<string[]>([]);
-  const [hoveredOffer, setHoveredOffer] = useState<string | null>(null);
+  const [activeUrgency,  setActiveUrgency]  = useState<string[]>([]);
+  const [darkMode,       setDarkMode]       = useState(true);
   const [modalOffer, setModalOffer] = useState<(Offer & { pn: string; desc: string }) | null>(null);
 
-  const toggle = (arr: string[], set: (v: string[]) => void, val: string) => {
+  const toggle = (arr: string[], set: (v: string[]) => void, val: string) =>
     set(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val]);
+
+  const currentStatus  = 'Новый';
+  const currentUrgency = 'Срочно';
+  const sm = statusMeta[currentStatus];
+
+  const toggleTheme = () => {
+    setDarkMode((d) => {
+      document.documentElement.classList.toggle('dark', !d);
+      return !d;
+    });
   };
+
+  /* Расчёт для модала */
+  const modalDelivery = modalOffer ? calcDelivery(modalOffer.price, modalOffer.currency) : null;
 
   return (
     <div className="min-h-screen bg-background grid-bg text-foreground font-sans relative overflow-x-hidden">
       <div className="pointer-events-none absolute top-[-20%] left-[10%] h-[500px] w-[500px] rounded-full bg-neon-cyan/10 blur-[140px]" />
       <div className="pointer-events-none absolute top-[20%] right-[5%] h-[400px] w-[400px] rounded-full bg-neon-purple/10 blur-[140px]" />
 
-      {/* HEADER */}
+      {/* ═══ HEADER ═══ */}
       <header className="sticky top-0 z-50 glass border-b border-white/5">
         <div className="mx-auto max-w-[1600px] px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -103,22 +299,37 @@ const Index = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button className="relative flex h-10 w-10 items-center justify-center rounded-lg glass glass-hover">
+          <div className="flex items-center gap-2">
+            {/* Чат */}
+            <button className="relative flex h-10 w-10 items-center justify-center rounded-lg glass glass-hover" title="Сообщения">
               <Icon name="MessageSquare" size={18} className="text-muted-foreground" />
               <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white">3</span>
             </button>
-            <button className="flex h-10 w-10 items-center justify-center rounded-lg glass glass-hover">
+            {/* Список КП */}
+            <button className="flex h-10 w-10 items-center justify-center rounded-lg glass glass-hover" title="Коммерческие предложения">
+              <Icon name="ClipboardList" size={18} className="text-muted-foreground" />
+            </button>
+            {/* Переключение темы */}
+            <button onClick={toggleTheme} className="flex h-10 w-10 items-center justify-center rounded-lg glass glass-hover" title="Сменить тему">
+              <Icon name={darkMode ? 'Sun' : 'Moon'} size={18} className="text-muted-foreground" />
+            </button>
+            {/* Настройки */}
+            <button className="flex h-10 w-10 items-center justify-center rounded-lg glass glass-hover" title="Настройки">
               <Icon name="Settings" size={18} className="text-muted-foreground" />
             </button>
-            <div className="flex items-center gap-3 rounded-lg glass px-3 py-1.5">
+            {/* Администратор */}
+            <button className="flex h-10 w-10 items-center justify-center rounded-lg glass glass-hover" title="Администрирование пользователей">
+              <Icon name="ShieldCheck" size={18} className="text-muted-foreground" />
+            </button>
+
+            <div className="ml-2 flex items-center gap-3 rounded-lg glass px-3 py-1.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-neon-cyan to-neon-purple text-sm font-bold text-background">АМ</div>
               <div className="leading-tight">
                 <p className="text-sm font-semibold">Алексей М.</p>
                 <p className="text-[11px] text-neon-cyan">Менеджер</p>
               </div>
             </div>
-            <button className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/15 text-destructive transition-colors hover:bg-destructive/25">
+            <button className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/15 text-destructive transition-colors hover:bg-destructive/25" title="Выход">
               <Icon name="LogOut" size={18} />
             </button>
           </div>
@@ -126,14 +337,10 @@ const Index = () => {
       </header>
 
       <main className="mx-auto max-w-[1600px] px-8 py-8 relative z-10">
-        {/* STATS */}
+        {/* ═══ STATS ═══ */}
         <section className="grid grid-cols-2 gap-4 lg:grid-cols-5 mb-8">
           {stats.map((s, i) => (
-            <div
-              key={s.label}
-              className="glass glass-hover rounded-2xl p-5 opacity-0 animate-slide-up"
-              style={{ animationDelay: `${i * 80}ms` }}
-            >
+            <div key={s.label} className="glass glass-hover rounded-2xl p-5 opacity-0 animate-slide-up" style={{ animationDelay: `${i * 80}ms` }}>
               <div className="flex items-start justify-between">
                 <p className="font-mono text-3xl font-bold tracking-tight leading-none" style={{ color: s.color }}>{s.value}</p>
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: `${s.color}1a` }}>
@@ -154,8 +361,8 @@ const Index = () => {
             </div>
             <div className="space-y-1.5">
               {currencies.map((c) => (
-                <div key={c.pair} className="flex items-center justify-between">
-                  <span className="font-mono text-xs text-muted-foreground">{c.pair}</span>
+                <div key={c.pair} className="flex items-center justify-between gap-1">
+                  <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">{c.pair}</span>
                   <span className="font-mono text-sm font-bold">{c.value}</span>
                   <span className={`flex items-center gap-0.5 font-mono text-xs ${c.up ? 'text-[#22D88F]' : 'text-destructive'}`}>
                     <Icon name={c.up ? 'ArrowUpRight' : 'ArrowDownRight'} size={13} />
@@ -167,16 +374,14 @@ const Index = () => {
           </div>
         </section>
 
-        {/* FILTERS */}
+        {/* ═══ FILTERS ═══ */}
         <section className="glass rounded-2xl p-4 mb-6 opacity-0 animate-fade-in" style={{ animationDelay: '300ms' }}>
-          <div className="flex flex-wrap items-center gap-4">
-            <button className="group flex items-center gap-2 rounded-xl bg-neon-cyan px-4 py-2.5 text-sm font-semibold text-background animate-pulse-glow transition-transform hover:scale-105">
-              <Icon name="Plus" size={18} />
-              Добавить запрос
+          <div className="flex flex-wrap items-center gap-3">
+            <button className="flex items-center gap-2 rounded-xl bg-neon-cyan px-4 py-2.5 text-sm font-semibold text-background animate-pulse-glow transition-transform hover:scale-105">
+              <Icon name="Plus" size={18} />Добавить запрос
             </button>
             <button className="flex items-center gap-2 rounded-xl bg-neon-purple px-4 py-2.5 text-sm font-semibold text-white transition-transform hover:scale-105 hover:shadow-[0_0_24px_rgba(139,92,246,0.5)]">
-              <Icon name="FileSpreadsheet" size={18} />
-              Создать КП
+              <Icon name="FileSpreadsheet" size={18} />Создать КП
             </button>
 
             <div className="flex rounded-xl glass p-1">
@@ -184,12 +389,8 @@ const Index = () => {
                 <button
                   key={st}
                   onClick={() => toggle(activeStatuses, setActiveStatuses, st)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-                    activeStatuses.includes(st) ? 'bg-neon-cyan/20 text-neon-cyan' : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {st}
-                </button>
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${activeStatuses.includes(st) ? 'bg-neon-cyan/20 text-neon-cyan' : 'text-muted-foreground hover:text-foreground'}`}
+                >{st}</button>
               ))}
             </div>
 
@@ -204,8 +405,7 @@ const Index = () => {
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  {u === 'Срочно' && <Icon name="Zap" size={13} />}
-                  {u}
+                  {u === 'Срочно' && <Icon name="Zap" size={13} />}{u}
                 </button>
               ))}
             </div>
@@ -222,118 +422,99 @@ const Index = () => {
 
             <div className="relative ml-auto">
               <Icon name="Search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
-                placeholder="Поиск по запросам, партномерам..."
-                className="w-72 rounded-xl glass py-2.5 pl-9 pr-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-neon-cyan"
-              />
+              <input placeholder="Поиск по запросам, партномерам..." className="w-72 rounded-xl glass py-2.5 pl-9 pr-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-neon-cyan" />
             </div>
           </div>
         </section>
 
-        {/* REQUEST MATRIX with header */}
+        {/* ═══ REQUEST MATRIX ═══ */}
         <section className="glass rounded-2xl overflow-hidden mb-6 opacity-0 animate-fade-in" style={{ animationDelay: '500ms' }}>
-          {/* Request header bar */}
-          <div className="relative flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-neon-cyan/10 to-transparent px-6 py-4">
-            <div className="absolute left-0 top-0 h-full w-1 bg-[#FF4D6D]" style={{ boxShadow: '0 0 16px #FF4D6D' }} />
-            <div className="flex items-center gap-6">
-              <div>
-                <p className="font-mono text-xl font-bold text-neon-cyan">REQ-2048</p>
-                <p className="text-sm font-medium text-foreground/90">ООО «ТехноПром»</p>
-              </div>
-              <div className="hidden md:flex items-center gap-5 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1.5"><Icon name="User" size={14} />Алексей М.</span>
-                <span className="flex items-center gap-1.5"><Icon name="Calendar" size={14} />23.06.2026</span>
-                <span className="flex items-center gap-1.5"><Icon name="Package" size={14} />3 позиции</span>
-              </div>
+
+          {/* ── Шапка запроса ── */}
+          <div className="flex items-stretch overflow-hidden rounded-t-2xl" style={{ minHeight: '56px' }}>
+
+            {/* Левая часть: данные запроса */}
+            <div className="flex items-center gap-4 px-6 py-3 flex-1 min-w-0"
+              style={{ background: currentUrgency === 'Срочно' ? 'rgba(255,77,109,0.13)' : 'rgba(0,212,255,0.08)' }}>
+              <span className="font-mono text-lg font-bold text-neon-cyan whitespace-nowrap">REQ-2048</span>
+              <span className="hidden md:block text-sm font-semibold text-foreground whitespace-nowrap">ООО «ТехноПром»</span>
+              <span className="hidden lg:flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap"><Icon name="User" size={13} />Алексей М.</span>
+              <span className="hidden lg:flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap"><Icon name="Calendar" size={13} />23.06.2026</span>
+              <span className="hidden lg:flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap"><Icon name="Package" size={13} />3 позиции</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-destructive/15 px-3 py-1 text-[11px] font-semibold text-destructive flex items-center gap-1"><Icon name="Zap" size={12} />Срочно</span>
-              <span className="rounded-full bg-neon-cyan/15 px-3 py-1 text-[11px] font-semibold text-neon-cyan">Новый</span>
+
+            {/* Диагональный разделитель */}
+            <div className="w-8 shrink-0 overflow-hidden"
+              style={{
+                background: sm.bg,
+                clipPath: 'polygon(100% 0, 100% 100%, 0 100%, 24px 0)',
+                marginLeft: '-1px',
+              }}
+            />
+
+            {/* Правая часть: статус */}
+            <div className="flex items-center px-6 py-3 gap-3 shrink-0" style={{ background: sm.bg }}>
+              <span className="font-mono text-xl font-extrabold tracking-widest" style={{ color: sm.color }}>
+                {sm.label}
+              </span>
+              {currentUrgency === 'Срочно' && (
+                <span className="flex items-center gap-1 rounded-full bg-destructive/20 px-2.5 py-1 text-[11px] font-semibold text-destructive">
+                  <Icon name="Zap" size={12} />СРОЧНО
+                </span>
+              )}
+            </div>
+
+            {/* Иконки менеджера */}
+            <div className="flex items-center gap-1 px-4 shrink-0 border-l border-white/8">
+              <button className="flex h-9 w-9 items-center justify-center rounded-lg glass glass-hover" title="Чат по запросу">
+                <Icon name="MessageSquare" size={16} className="text-neon-cyan" />
+              </button>
+              <button className="flex h-9 w-9 items-center justify-center rounded-lg glass glass-hover" title="Файлы к запросу">
+                <Icon name="Download" size={16} className="text-muted-foreground" />
+              </button>
+              <button className="flex h-9 w-9 items-center justify-center rounded-lg glass glass-hover" title="Создать сделку в Битрикс">
+                <Icon name="Handshake" size={16} className="text-neon-purple" />
+              </button>
+              <button className="flex h-9 w-9 items-center justify-center rounded-lg glass glass-hover" title="Создать задачу на закупку в Битрикс">
+                <Icon name="ListChecks" size={16} className="text-[#FFB020]" />
+              </button>
             </div>
           </div>
 
-          {/* Products + offers */}
-          <div className="p-6">
-            <div className="space-y-4">
-              {products.map((p, ri) => (
-                <div key={p.pn} className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 items-start">
-                  <div className="glass rounded-xl p-3">
-                    <p className="font-mono text-sm font-bold text-neon-cyan">{p.pn}</p>
-                    <p className="mt-0.5 text-xs text-foreground/80 leading-snug">{p.desc}</p>
-                    <p className="mt-2 inline-block rounded bg-secondary px-2 py-0.5 font-mono text-[11px]">× {p.qty} шт</p>
+          {/* ── Товары и предложения ── */}
+          <div className="p-5 space-y-5">
+            {products.map((p) => (
+              <div key={p.pn} className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4 items-start">
+
+                {/* Карточка товара */}
+                <div className="glass rounded-xl p-3 flex flex-col">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-mono text-base font-extrabold text-neon-cyan leading-tight">{p.pn}</p>
+                    <span className="shrink-0 rounded bg-secondary px-2 py-0.5 font-mono text-xs font-bold text-foreground">
+                      ×{p.qty}
+                    </span>
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                    {p.offers.map((offer, si) => {
-                      const key = `${ri}-${si}`;
-                      const hasMeta = offer.comment || offer.file;
-                      return (
-                        <div
-                          key={si}
-                          onMouseEnter={() => setHoveredOffer(key)}
-                          onMouseLeave={() => setHoveredOffer(null)}
-                          onClick={() => setModalOffer({ ...offer, pn: p.pn, desc: p.desc })}
-                          className="glass glass-hover relative flex flex-col rounded-xl p-3 cursor-pointer"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground/90">
-                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-neon-purple/20 text-[9px] text-neon-purple">{offer.supplier[0]}</span>
-                              {offer.supplier}
-                            </span>
-                            <span className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: `${condColors[offer.cond]}22`, color: condColors[offer.cond] }}>
-                              {offer.cond}
-                            </span>
-                          </div>
-
-                          <div className="mt-2 font-mono text-lg font-bold text-foreground">
-                            {offer.price}<span className="ml-0.5 text-xs text-muted-foreground">{offer.cur}</span>
-                          </div>
-
-                          <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
-                            <span className="flex items-center gap-1"><Icon name="Clock" size={11} />{offer.days}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="flex items-center gap-0.5"><Icon name="Truck" size={12} className="text-neon-cyan" />{offer.truck}</span>
-                              <span className="flex items-center gap-0.5"><Icon name="Plane" size={12} className="text-neon-purple" />{offer.plane}</span>
-                            </div>
-                          </div>
-
-                          {hasMeta && (
-                            <div className="mt-2 flex items-center gap-2 border-t border-white/5 pt-2">
-                              {offer.comment && (
-                                <span className="flex items-center gap-1 text-[10px] text-neon-cyan">
-                                  <Icon name="MessageSquareText" size={11} />коммент
-                                </span>
-                              )}
-                              {offer.file && (
-                                <span className="flex items-center gap-1 truncate text-[10px] text-neon-purple">
-                                  <Icon name="Paperclip" size={11} />{offer.file}
-                                </span>
-                              )}
-                            </div>
-                          )}
-
-                          <div className={`mt-2 flex items-center gap-1.5 transition-all ${hoveredOffer === key ? 'opacity-100 max-h-8' : 'opacity-0 max-h-0 overflow-hidden'}`}>
-                            <input type="checkbox" onClick={(e) => e.stopPropagation()} className="h-4 w-4 rounded accent-neon-cyan cursor-pointer" />
-                            <span className="text-[10px] text-neon-cyan">Выбрать предложение</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <p className="mt-1 text-xs text-foreground/80 leading-snug">{p.desc}</p>
+                  {p.managerComment && (
+                    <p className="mt-2 border-t border-white/6 pt-2 text-[11px] text-neon-cyan/80 leading-snug">
+                      <Icon name="MessageSquare" size={11} className="inline mr-1 -mt-0.5" />{p.managerComment}
+                    </p>
+                  )}
                 </div>
-              ))}
-            </div>
+
+                {/* Ряд предложений */}
+                <OffersRow product={p} onOfferClick={setModalOffer} />
+              </div>
+            ))}
           </div>
         </section>
 
-        {/* PAGINATION */}
+        {/* ═══ PAGINATION ═══ */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Показывать по</span>
             <select className="rounded-lg glass px-2 py-1 text-foreground focus:outline-none">
-              <option>10</option>
-              <option>20</option>
-              <option>50</option>
+              <option>10</option><option>20</option><option>50</option>
             </select>
           </div>
           <div className="flex items-center gap-1">
@@ -341,12 +522,7 @@ const Index = () => {
               <Icon name="ChevronLeft" size={16} />
             </button>
             {[1, 2, 3, 4, 5].map((n) => (
-              <button
-                key={n}
-                className={`flex h-9 w-9 items-center justify-center rounded-lg font-mono text-sm transition-all ${
-                  n === 1 ? 'bg-neon-cyan text-background font-bold' : 'glass glass-hover text-muted-foreground'
-                }`}
-              >
+              <button key={n} className={`flex h-9 w-9 items-center justify-center rounded-lg font-mono text-sm transition-all ${n === 1 ? 'bg-neon-cyan text-background font-bold' : 'glass glass-hover text-muted-foreground'}`}>
                 {n}
               </button>
             ))}
@@ -357,19 +533,15 @@ const Index = () => {
         </div>
       </main>
 
-      {/* OFFER MODAL */}
-      {modalOffer && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-background/70 backdrop-blur-sm p-4 animate-fade-in"
-          onClick={() => setModalOffer(null)}
-        >
-          <div
-            className="glass glitch-border w-full max-w-md rounded-2xl p-6 animate-scale-in"
-            onClick={(e) => e.stopPropagation()}
-          >
+      {/* ═══ OFFER MODAL ═══ */}
+      {modalOffer && modalDelivery && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/70 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setModalOffer(null)}>
+          <div className="glass glitch-border w-full max-w-md rounded-2xl p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+
+            {/* Заголовок */}
             <div className="mb-4 flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-neon-purple/20 font-mono font-bold text-neon-purple">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-neon-purple/20 font-mono text-lg font-bold text-neon-purple">
                   {modalOffer.supplier[0]}
                 </div>
                 <div>
@@ -382,15 +554,19 @@ const Index = () => {
               </button>
             </div>
 
+            {/* Товар */}
             <div className="rounded-xl bg-secondary/40 p-3 mb-4">
               <p className="font-mono text-sm font-bold text-neon-cyan">{modalOffer.pn}</p>
               <p className="text-xs text-foreground/80">{modalOffer.desc}</p>
             </div>
 
+            {/* Цена + доставка */}
             <div className="grid grid-cols-3 gap-2 mb-4">
-              <div className="glass rounded-xl p-3 text-center">
+              <div className="glass rounded-xl p-3 text-center col-span-1">
                 <p className="text-[10px] text-muted-foreground">Цена</p>
-                <p className="font-mono text-base font-bold text-foreground">{modalOffer.price}{modalOffer.cur}</p>
+                <p className="font-mono text-lg font-bold" style={{ color: CUR_COLOR[modalOffer.currency] }}>
+                  {fmtPrice(modalOffer.price, modalOffer.currency)}
+                </p>
               </div>
               <div className="glass rounded-xl p-3 text-center">
                 <p className="text-[10px] text-muted-foreground">Состояние</p>
@@ -402,28 +578,42 @@ const Index = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 mb-4 text-sm">
-              <span className="flex items-center gap-1.5 text-muted-foreground"><Icon name="Truck" size={16} className="text-neon-cyan" />Авто: {modalOffer.truck}₽</span>
-              <span className="flex items-center gap-1.5 text-muted-foreground"><Icon name="Plane" size={16} className="text-neon-purple" />Авиа: {modalOffer.plane}₽</span>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="glass rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-1 text-[10px] text-muted-foreground">
+                  <Icon name="Truck" size={12} className="text-neon-cyan" />Наземная (+30%)
+                </div>
+                <p className="font-mono text-sm font-bold text-foreground">{fmtRub(modalDelivery.truck)}</p>
+              </div>
+              <div className="glass rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-1 text-[10px] text-muted-foreground">
+                  <Icon name="Plane" size={12} className="text-neon-purple" />Авиа (+20%)
+                </div>
+                <p className="font-mono text-sm font-bold text-foreground">{fmtRub(modalDelivery.plane)}</p>
+              </div>
             </div>
 
-            <div className="mb-4">
-              <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-neon-cyan"><Icon name="MessageSquareText" size={14} />Комментарий поставщика</p>
-              <p className="rounded-xl bg-secondary/40 p-3 text-sm leading-relaxed text-foreground/90">
-                {modalOffer.comment || 'Комментарий к предложению отсутствует.'}
-              </p>
-            </div>
+            {/* Комментарий */}
+            {modalOffer.comment && (
+              <div className="mb-4">
+                <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-neon-cyan">
+                  <Icon name="MessageSquareText" size={14} />Комментарий поставщика
+                </p>
+                <p className="rounded-xl bg-secondary/40 p-3 text-sm leading-relaxed text-foreground/90">{modalOffer.comment}</p>
+              </div>
+            )}
 
+            {/* Файл */}
             {modalOffer.file && (
               <a className="flex items-center justify-between rounded-xl glass glass-hover p-3 cursor-pointer mb-4">
                 <span className="flex items-center gap-2 text-sm text-foreground">
-                  <Icon name="FileText" size={18} className="text-neon-purple" />
-                  {modalOffer.file}
+                  <Icon name="FileText" size={18} className="text-neon-purple" />{modalOffer.file}
                 </span>
                 <Icon name="Download" size={16} className="text-neon-cyan" />
               </a>
             )}
 
+            {/* Кнопки */}
             <div className="flex gap-2">
               <button className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-neon-cyan py-2.5 text-sm font-semibold text-background transition-transform hover:scale-[1.02]">
                 <Icon name="Check" size={16} />Выбрать предложение
